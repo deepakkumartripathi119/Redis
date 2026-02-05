@@ -1,5 +1,7 @@
 package Services;
+
 import utils.GlobeStore;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -53,27 +55,28 @@ public class ProcessRequest {
         }
         return "$-1\r\n";
     }
-    public static String processRPush(String[] chunks)
-    {
+
+    public static String processRPush(String[] chunks) {
         if (chunks.length >= 7) {
             String list = chunks[4];
-            String val = chunks[6];
             String size = "";
-            ArrayList<String> myList=GlobeStore.rPushList.get(list);
-            if(myList==null){
+            ArrayList<String> myList = GlobeStore.rPushList.get(list);
+            if (myList == null) {
                 ArrayList<String> newList = new ArrayList<String>();
-                newList.add(val);
-                GlobeStore.rPushList.put(list,newList);
+                for (int i = 6; i < chunks.length; i+=2) {
+                    newList.add(chunks[i]);
+                }
+                GlobeStore.rPushList.put(list, newList);
                 size = String.valueOf(newList.size());
-            }
-            else
-            {
-                myList.add(val);
-                GlobeStore.rPushList.put(list,myList);
+            } else {
+                for (int i = 6; i < chunks.length; i+=2) {
+                    myList.add(chunks[i]);
+                }
+                GlobeStore.rPushList.put(list, myList);
                 size = String.valueOf(myList.size());
             }
 
-            return ":"+size+"\r\n";
+            return ":" + size + "\r\n";
         }
         return "$-1\r\n";
     }
