@@ -8,7 +8,7 @@ import java.net.Socket;
 public class SendMultipleRequest {
     static ProcessRequest processRequest = new ProcessRequest();
 
-    void multipleResponse(Socket clientSocket) {
+    public void multipleResponse(Socket clientSocket) {
         try {
             OutputStream outputStream = clientSocket.getOutputStream();
             InputStream inputStream = clientSocket.getInputStream();
