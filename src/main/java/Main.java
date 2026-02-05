@@ -20,9 +20,16 @@ public class Main {
             serverSocket.setReuseAddress(true);
             // Wait for connection from client.
 
-            clientSocket = serverSocket.accept();
 
-            sendMultipleRequest.multipleResponse(clientSocket);
+            while (true) {
+                clientSocket = serverSocket.accept();
+                HandleClients handleClients = new HandleClients(clientSocket);
+
+                Thread worker = new Thread(handleClients);
+                worker.start();
+            }
+
+
         } catch (IOException e) {
             System.out.println("IOException: " + e.getMessage());
         } finally {
@@ -35,4 +42,19 @@ public class Main {
             }
         }
     }
+
+    static class HandleClients implements Runnable {
+        private final Socket clientSocket;
+        HandleClients(Socket clientSocket) {
+            this.clientSocket = clientSocket;
+        }
+
+        @Override
+        public void run() {
+            sendMultipleRequest.multipleResponse(clientSocket);
+        }
+    }
 }
+
+
+
