@@ -25,6 +25,9 @@ public class ProcessRequest {
         } else if (command.equalsIgnoreCase("GET")) {
             return processGet(chunks);
         }
+        else if (command.equalsIgnoreCase("RPUSH")) {
+            return processRPush(chunks);
+        }
 
         return "$-1\r\n";
     }

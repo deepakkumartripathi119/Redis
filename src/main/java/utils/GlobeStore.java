@@ -1,6 +1,7 @@
 package utils;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class GlobeStore {
@@ -9,4 +10,5 @@ public class GlobeStore {
     // 3. 'final' ensures you don't accidentally replace the map with a new one
     public static final ConcurrentHashMap<String, String> data = new ConcurrentHashMap<>();
     public static final ConcurrentHashMap<String, Instant> expTime = new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<String, ArrayList<String>> rPushList = new ConcurrentHashMap<>();
 }
