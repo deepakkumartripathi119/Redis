@@ -6,7 +6,7 @@ import java.io.OutputStream;
 import java.net.Socket;
 
 public class SendMultipleRequest {
-    static ProcessRequest processRequest = new ProcessRequest();
+    static ControllRequest controllRequest = new ControllRequest();
 
     public void multipleResponse(Socket clientSocket) {
         try {
@@ -20,7 +20,7 @@ public class SendMultipleRequest {
                     break;
                 }
                 String inputString = new String(input, 0, byteCount).trim();
-                String parsedString = processRequest.requestParser(inputString);
+                String parsedString = controllRequest.requestParser(inputString);
                 outputStream.write(parsedString.getBytes());
                 outputStream.flush();
             }
