@@ -1,10 +1,12 @@
+package Controllers;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 
 public class SendMultipleRequest {
-    static RequestParser requestParser = new RequestParser();
+    static ProcessRequest processRequest = new ProcessRequest();
 
     void multipleResponse(Socket clientSocket) {
         try {
@@ -18,7 +20,7 @@ public class SendMultipleRequest {
                     break;
                 }
                 String inputString = new String(input, 0, byteCount).trim();
-                String parsedString = requestParser.requestParser(inputString);
+                String parsedString = processRequest.requestParser(inputString);
                 outputStream.write(parsedString.getBytes());
                 outputStream.flush();
             }
