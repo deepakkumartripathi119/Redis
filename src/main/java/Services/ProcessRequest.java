@@ -85,18 +85,16 @@ public class ProcessRequest {
         if (chunks.length >= 9) {
             String list = chunks[4];
             ArrayList<String> myList = GlobeStore.rPushList.get(list);
-            if(myList==null)return "*0\r\n";
+            if (myList == null) return "*0\r\n";
             int l = Integer.parseInt(chunks[6]);
             int r = Integer.parseInt(chunks[8]);
-
-            if(l < 0 || r < 0 || l > r)return "*0\r\n";
-            r = Integer.min(r,myList.size()-1);
-            String output = "*"+ ( r- l + 1) +"\r\n";
+            if (l < 0 || r < 0 || l > r) return "*0\r\n";
+            r = Integer.min(r, myList.size() - 1);
+            String output = "*" + (r - l + 1) + "\r\n";
             for (int i = l; i <= r; i++) {
                 String val = myList.get(i);
-                output = output.concat("$"+val.length()+"\r\n"+val+"\r\n");
+                output = output.concat("$" + val.length() + "\r\n" + val + "\r\n");
             }
-
             return output;
         }
         return "*0\r\n";
