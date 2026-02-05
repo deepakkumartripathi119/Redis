@@ -4,22 +4,23 @@ import java.io.OutputStream;
 import java.net.Socket;
 
 public class SendMultipleRequest {
+    static RequestParser requestParser = new RequestParser();
 
-    void multipleResponse(Socket clientSocket)
-    {
+    void multipleResponse(Socket clientSocket) {
         try {
             OutputStream outputStream = clientSocket.getOutputStream();
-            InputStream inputStream  = clientSocket.getInputStream();
+            InputStream inputStream = clientSocket.getInputStream();
 
-            while(true)
-            {
+            while (true) {
                 byte[] input = new byte[1024];
                 int byteCount = inputStream.read(input);
-                String inputString = new String(input).trim();
-
-                outputStream.write("+PONG\r\n".getBytes());
+                if (byteCount == -1) {
+                    break;
+                }
+                String inputString = new String(input, 0, byteCount).trim();
+                String parsedString = requestParser.requestParser(inputString);
+                outputStream.write(parsedString.getBytes());
                 outputStream.flush();
-
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
