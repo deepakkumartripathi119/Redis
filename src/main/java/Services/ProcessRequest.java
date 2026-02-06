@@ -88,7 +88,11 @@ public class ProcessRequest {
             if (myList == null) return "*0\r\n";
             int l = Integer.parseInt(chunks[6]);
             int r = Integer.parseInt(chunks[8]);
-            if (l < 0 || r < 0 || l > r) return "*0\r\n";
+            if(l<0)l = myList.size() + l;
+            if(r<0)r = myList.size() + r;
+            if (l > r) return "*0\r\n";
+            if(l<0)l=0;
+            if(r<0)r=0;
             r = Integer.min(r, myList.size() - 1);
             String output = "*" + (r - l + 1) + "\r\n";
             for (int i = l; i <= r; i++) {
