@@ -36,6 +36,9 @@ public class ControllRequest {
         else if (command.equalsIgnoreCase("LLEN")) {
             return processLlen(chunks);
         }
+        else if (command.equalsIgnoreCase("LPOP")) {
+            return processLpop(chunks);
+        }
 
 
         return "$-1\r\n";

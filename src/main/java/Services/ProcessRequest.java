@@ -1,5 +1,7 @@
 package Services;
+
 import utils.GlobeStore;
+
 import java.time.Instant;
 import java.util.ArrayDeque;
 
@@ -111,11 +113,11 @@ public class ProcessRequest {
             int l = Integer.parseInt(chunks[6]);
             int r = Integer.parseInt(chunks[8]);
 
-            if(l<0)l = myList.size() + l;
-            if(r<0)r = myList.size() + r;
+            if (l < 0) l = myList.size() + l;
+            if (r < 0) r = myList.size() + r;
             if (l > r) return "*0\r\n";
-            if(l<0)l=0;
-            if(r<0)r=0;
+            if (l < 0) l = 0;
+            if (r < 0) r = 0;
             r = Integer.min(r, myList.size() - 1);
 
             String output = "*" + (r - l + 1) + "\r\n";
@@ -144,5 +146,21 @@ public class ProcessRequest {
             return ":" + size + "\r\n";
         }
         return ":0\r\n";
+    }
+
+    public static String processLpop(String[] chunks) {
+        if (chunks.length >= 5) {
+            String list = chunks[4];
+            String size = "";
+            ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
+            if (myList == null || myList.isEmpty()) {
+                return "$-1\r\n";
+            }
+            String first = myList.getFirst();
+            myList.removeFirst();
+
+            return "$" + first.length() + "\r\n" + first + "\r\n";
+        }
+        return "$-1\r\n";
     }
 }
