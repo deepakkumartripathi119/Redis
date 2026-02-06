@@ -33,6 +33,9 @@ public class ControllRequest {
         else if (command.equalsIgnoreCase("LRANGE")) {
             return processLrange(chunks);
         }
+        else if (command.equalsIgnoreCase("LLEN")) {
+            return processLlen(chunks);
+        }
 
 
         return "$-1\r\n";

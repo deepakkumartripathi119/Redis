@@ -129,4 +129,20 @@ public class ProcessRequest {
         }
         return "*0\r\n";
     }
+
+    public static String processLlen(String[] chunks) {
+        if (chunks.length >= 5) {
+            String list = chunks[4];
+            String size = "";
+            ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
+            if (myList == null) {
+                return ":0\r\n";
+            } else {
+                size = String.valueOf(myList.size());
+            }
+
+            return ":" + size + "\r\n";
+        }
+        return ":0\r\n";
+    }
 }
