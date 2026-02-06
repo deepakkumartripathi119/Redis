@@ -151,15 +151,23 @@ public class ProcessRequest {
     public static String processLpop(String[] chunks) {
         if (chunks.length >= 5) {
             String list = chunks[4];
-            String size = "";
             ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
             if (myList == null || myList.isEmpty()) {
                 return "$-1\r\n";
             }
-            String first = myList.getFirst();
-            myList.removeFirst();
-
-            return "$" + first.length() + "\r\n" + first + "\r\n";
+            String output = "";
+            int count = 1;
+            if (chunks.length >= 7) {
+                count = Integer.parseInt(chunks[6]);
+                output = output.concat("*" + count + "\r\n");
+            }
+            int size = myList.size();
+            for (int i = 0; i < Integer.min(size, count); i++) {
+                String first = myList.getFirst();
+                myList.removeFirst();
+                output = output.concat("$" + first.length() + "\r\n" + first + "\r\n");
+            }
+            return output;
         }
         return "$-1\r\n";
     }
