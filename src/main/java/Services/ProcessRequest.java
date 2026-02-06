@@ -1,10 +1,7 @@
 package Services;
-
 import utils.GlobeStore;
-
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.ArrayDeque;
 
 public class ProcessRequest {
     public static String processEcho(String[] chunks) {
@@ -60,9 +57,9 @@ public class ProcessRequest {
         if (chunks.length >= 7) {
             String list = chunks[4];
             String size = "";
-            ArrayList<String> myList = GlobeStore.rPushList.get(list);
+            ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
             if (myList == null) {
-                ArrayList<String> newList = new ArrayList<String>();
+                ArrayDeque<String> newList = new ArrayDeque<>();
                 for (int i = 6; i < chunks.length; i += 2) {
                     newList.add(chunks[i]);
                 }
@@ -81,22 +78,51 @@ public class ProcessRequest {
         return "$-1\r\n";
     }
 
+    public static String processLPush(String[] chunks) {
+        if (chunks.length >= 7) {
+            String list = chunks[4];
+            String size = "";
+            ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
+            if (myList == null) {
+                ArrayDeque<String> newList = new ArrayDeque<>();
+                for (int i = 6; i < chunks.length; i += 2) {
+                    newList.addFirst(chunks[i]);
+                }
+                GlobeStore.rPushList.put(list, newList);
+                size = String.valueOf(newList.size());
+            } else {
+                for (int i = 6; i < chunks.length; i += 2) {
+                    myList.addFirst(chunks[i]);
+                }
+                GlobeStore.rPushList.put(list, myList);
+                size = String.valueOf(myList.size());
+            }
+
+            return ":" + size + "\r\n";
+        }
+        return "$-1\r\n";
+    }
+
     public static String processLrange(String[] chunks) {
         if (chunks.length >= 9) {
             String list = chunks[4];
-            ArrayList<String> myList = GlobeStore.rPushList.get(list);
+            ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
             if (myList == null) return "*0\r\n";
             int l = Integer.parseInt(chunks[6]);
             int r = Integer.parseInt(chunks[8]);
+
             if(l<0)l = myList.size() + l;
             if(r<0)r = myList.size() + r;
             if (l > r) return "*0\r\n";
             if(l<0)l=0;
             if(r<0)r=0;
             r = Integer.min(r, myList.size() - 1);
+
             String output = "*" + (r - l + 1) + "\r\n";
+            Object[] arr = myList.toArray();
+
             for (int i = l; i <= r; i++) {
-                String val = myList.get(i);
+                String val = (String) arr[i];
                 output = output.concat("$" + val.length() + "\r\n" + val + "\r\n");
             }
             return output;

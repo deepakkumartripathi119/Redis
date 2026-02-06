@@ -27,6 +27,9 @@ public class ControllRequest {
         }else if (command.equalsIgnoreCase("RPUSH")) {
             return processRPush(chunks);
         }
+        else if (command.equalsIgnoreCase("LPUSH")) {
+            return processLPush(chunks);
+        }
         else if (command.equalsIgnoreCase("LRANGE")) {
             return processLrange(chunks);
         }
