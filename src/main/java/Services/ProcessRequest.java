@@ -219,11 +219,11 @@ public class ProcessRequest {
         if(chunks.length >= 2)
         {
             String list = chunks[1];
-            if(GlobeStore.rPushList.get(list)!=null)
+            if(GlobeStore.data.get(list)!=null)
             {
-                return "+STRING\r\n";
+                return "+string\r\n";
             }
-            return "+NONE\r\n";
+            return "+none\r\n";
         }
         return "$-1\r\n";
     }
