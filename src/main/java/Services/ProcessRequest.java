@@ -4,11 +4,7 @@ import utils.GlobeStore;
 
 import java.time.Instant;
 import java.util.ArrayDeque;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.*;
-import java.util.stream.Collectors;
 
 public class ProcessRequest {
 
@@ -215,6 +211,19 @@ public class ProcessRequest {
                 GlobeStore.BLpopClients.get(list).remove(ticket);
                 return "*-1\r\n";
             }
+        }
+        return "$-1\r\n";
+    }
+
+    public static String processType(String[] chunks){
+        if(chunks.length >= 2)
+        {
+            String list = chunks[1];
+            if(GlobeStore.rPushList.get(list)!=null)
+            {
+                return "+STRING\r\n";
+            }
+            return "+NONE\r\n";
         }
         return "$-1\r\n";
     }

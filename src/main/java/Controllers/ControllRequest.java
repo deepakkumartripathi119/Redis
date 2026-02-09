@@ -34,6 +34,10 @@ public class ControllRequest {
         else if (command.equalsIgnoreCase("BLPOP")) {
             return processBLpop(chunks);
         }
+        else if (command.equalsIgnoreCase("TYPE")) {
+            return processType(chunks);
+        }
+
 
 
 
