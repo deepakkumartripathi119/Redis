@@ -14,7 +14,7 @@ public class GlobeStore {
     public static final ConcurrentHashMap<String, Instant> expTime = new ConcurrentHashMap<>();
     public static final ConcurrentHashMap<String, ArrayDeque<String>> rPushList = new ConcurrentHashMap<>();
     public static final ConcurrentHashMap<String, LinkedBlockingQueue<Ticket>> BLpopClients = new ConcurrentHashMap<>();
-    public static final ConcurrentHashMap<String, Instant> expTimeClientBLpop = new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<Ticket, Instant> expTimeClientBLpop = new ConcurrentHashMap<>();
     public static final ConcurrentHashMap<String, ScheduledExecutorService> schedulers = new ConcurrentHashMap<>();
 
 

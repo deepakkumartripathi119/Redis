@@ -4,7 +4,11 @@ import utils.GlobeStore;
 
 import java.time.Instant;
 import java.util.ArrayDeque;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 public class ProcessRequest {
 
@@ -177,10 +181,11 @@ public class ProcessRequest {
     public static String processBLpop(String[] chunks) throws InterruptedException {
         if (chunks.length >= 3) {
             String list = chunks[1];
-            long wait = Long.parseLong(chunks[2]);
+            double wait = Double.parseDouble(chunks[2]);
+            long exp = (long) (wait * 1000);
 
-            //we will work on 'wait' later
             GlobeStore.Ticket ticket = new GlobeStore.Ticket();
+
             GlobeStore.BLpopClients.computeIfAbsent(list, k -> new LinkedBlockingQueue<>()).add(ticket);
 
             synchronized (GlobeStore.schedulers) {
@@ -188,61 +193,80 @@ public class ProcessRequest {
                     createNewSchedulerAndRunIt(list);
                 }
             }
+
             synchronized (ticket) {
-                while (!ticket.isDone) {
-                    ticket.wait();
+                if (exp == 0) {
+                    while (!ticket.isDone) {
+                        ticket.wait();
+                    }
+                } else {
+                    long deadline = System.currentTimeMillis() + exp;
+                    while (!ticket.isDone) {
+                        long timeLeft = deadline - System.currentTimeMillis();
+                        if (timeLeft <= 0) break;
+                        ticket.wait(timeLeft);
+                    }
                 }
             }
 
-            System.out.println("value: " + ticket.value + " list: " + list + "isDone : " + ticket.isDone);
-            return "*2\r\n$" + list.length() + "\r\n"+list +"\r\n$" + ticket.value.length() + "\r\n" + ticket.value + "\r\n";
+            if (ticket.value != null) {
+                return "*2\r\n$" + list.length() + "\r\n" + list + "\r\n$" + ticket.value.length() + "\r\n" + ticket.value + "\r\n";
+            } else {
+                GlobeStore.BLpopClients.get(list).remove(ticket);
+                return "*-1\r\n";
+            }
         }
         return "$-1\r\n";
     }
 
     private static void createNewSchedulerAndRunIt(String list) {
         ScheduledExecutorService BlpopScheduler = Executors.newSingleThreadScheduledExecutor();
-        BlpopScheduler.scheduleWithFixedDelay(() -> {
-            System.out.println("Running the list exist or not...");
-            boolean closed = checkClientQueueEmptyAndCloseScheduler(list, BlpopScheduler);
-            if (!closed && checkListCreatedOrNot(list)) {
-                //remove the first and assign it to ticket and give to the first client then remove the client.
-                synchronized (GlobeStore.rPushList.get(list)) {
-                    GlobeStore.Ticket client = GlobeStore.BLpopClients.get(list).poll();
-                    ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
-                    String value = myList.getFirst();
+        GlobeStore.schedulers.put(list, BlpopScheduler);
 
-                    if (client != null) {
-                        synchronized (client) {
-                            client.value = value;
-                            client.isDone = true;
-                            client.notify();
+        BlpopScheduler.scheduleWithFixedDelay(() -> {
+            try {
+                if (checkClientQueueEmptyAndCloseScheduler(list, BlpopScheduler)) {
+                    return;
+                }
+
+                if (checkListCreatedOrNot(list)) {
+                    ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
+                    synchronized (myList) {
+                        if (!myList.isEmpty()) {
+                            LinkedBlockingQueue<GlobeStore.Ticket> clients = GlobeStore.BLpopClients.get(list);
+                            GlobeStore.Ticket client = clients.poll();
+
+                            if (client != null) {
+                                String value = myList.removeFirst();
+                                synchronized (client) {
+                                    client.value = value;
+                                    client.isDone = true;
+                                    client.notify();
+                                }
+                            }
                         }
                     }
-                    myList.removeFirst();
                 }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-        }, 0, 10, TimeUnit.NANOSECONDS);
-        GlobeStore.schedulers.put(list, BlpopScheduler);
+        }, 0, 10, TimeUnit.MILLISECONDS);
     }
 
     private static boolean checkClientQueueEmptyAndCloseScheduler(String list, ScheduledExecutorService BlpopScheduler) {
-
         synchronized (GlobeStore.schedulers) {
-
-            if (GlobeStore.BLpopClients.get(list).isEmpty()) {
-                synchronized (GlobeStore.BLpopClients.get(list)) {
-                    BlpopScheduler.shutdown();
-                    GlobeStore.schedulers.remove(list);
-                    return true;
-                }
-            } else return false;
+            LinkedBlockingQueue<GlobeStore.Ticket> clients = GlobeStore.BLpopClients.get(list);
+            if (clients == null || clients.isEmpty()) {
+                BlpopScheduler.shutdown();
+                GlobeStore.schedulers.remove(list);
+                return true;
+            }
+            return false;
         }
-
     }
 
     private static boolean checkListCreatedOrNot(String list) {
         ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
-        return !(myList == null || myList.isEmpty());
+        return myList != null;
     }
 }
