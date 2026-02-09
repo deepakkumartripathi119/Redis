@@ -37,6 +37,9 @@ public class ControllRequest {
         else if (command.equalsIgnoreCase("TYPE")) {
             return processType(chunks);
         }
+        else if (command.equalsIgnoreCase("XADD")) {
+            return processXAdd(chunks);
+        }
 
 
 

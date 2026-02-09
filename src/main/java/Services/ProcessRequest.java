@@ -1,9 +1,13 @@
 package Services;
 
 import utils.GlobeStore;
+import utils.Stream;
+import utils.StreamEntry;
 
+import java.awt.*;
 import java.time.Instant;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.concurrent.*;
 
 public class ProcessRequest {
@@ -31,6 +35,7 @@ public class ProcessRequest {
                 long sec = Long.parseLong(exp);
                 GlobeStore.expTime.put(key, Instant.now().plusSeconds(sec));
             }
+            GlobeStore.typeOfData.computeIfAbsent(key,k-> "string");
             return "+OK\r\n";
         }
         return "$-1\r\n";
@@ -76,7 +81,7 @@ public class ProcessRequest {
                 GlobeStore.rPushList.put(list, myList);
                 size = String.valueOf(myList.size());
             }
-
+            GlobeStore.typeOfData.computeIfAbsent(list,k-> "string");
             return ":" + size + "\r\n";
         }
         return "$-1\r\n";
@@ -101,7 +106,7 @@ public class ProcessRequest {
                 GlobeStore.rPushList.put(list, myList);
                 size = String.valueOf(myList.size());
             }
-
+            GlobeStore.typeOfData.computeIfAbsent(list,k-> "string");
             return ":" + size + "\r\n";
         }
         return "$-1\r\n";
@@ -110,6 +115,7 @@ public class ProcessRequest {
     public static String processLrange(String[] chunks) {
         if (chunks.length >= 4) {
             String list = chunks[1];
+
             ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
             if (myList == null) return "*0\r\n";
             int l = Integer.parseInt(chunks[2]);
@@ -219,13 +225,28 @@ public class ProcessRequest {
         if(chunks.length >= 2)
         {
             String list = chunks[1];
-            if(GlobeStore.data.get(list)!=null)
+            String type = GlobeStore.typeOfData.get(list);
+            if(type!=null)
             {
-                return "+string\r\n";
+                return "+"+type+"\r\n";
             }
             return "+none\r\n";
         }
         return "$-1\r\n";
+    }
+    public static String processXAdd(String[] chunks)
+    {
+        String streamList = chunks[1];
+        String id = chunks[2];
+        Stream stream = GlobeStore.streamMap.computeIfAbsent(streamList,k->new Stream());
+        ArrayList<String> data = new ArrayList<>();
+        for (int i = 3; i <chunks.length; i++) {
+            data.add(chunks[i]);
+        }
+        StreamEntry entry = new StreamEntry(id,data);
+        stream.addEntry(entry);
+        GlobeStore.typeOfData.computeIfAbsent(streamList,k-> "stream");
+        return "$"+id.length()+"\r\n"+id+"\r\n";
     }
 
     private static void createNewSchedulerAndRunIt(String list) {
