@@ -4,28 +4,30 @@ import utils.GlobeStore;
 
 import java.time.Instant;
 import java.util.ArrayDeque;
+import java.util.concurrent.*;
 
 public class ProcessRequest {
+
     public static String processEcho(String[] chunks) {
-        if (chunks.length >= 5) {
-            String data = chunks[4];
+        if (chunks.length >= 2) {
+            String data = chunks[1];
             return "$" + data.length() + "\r\n" + data + "\r\n";
         }
         return "$-1\r\n";
     }
 
     public static String processSet(String[] chunks) {
-        if (chunks.length >= 7) {
-            String key = chunks[4];
-            String val = chunks[6];
+        if (chunks.length >= 3) {
+            String key = chunks[1];
+            String val = chunks[2];
             GlobeStore.data.put(key, val);
 
-            if (chunks.length >= 11 && chunks[8].equalsIgnoreCase("PX")) {
-                String exp = chunks[10];
+            if (chunks.length >= 5 && chunks[3].equalsIgnoreCase("PX")) {
+                String exp = chunks[4];
                 long millSec = Long.parseLong(exp);
                 GlobeStore.expTime.put(key, Instant.now().plusMillis(millSec));
-            } else if (chunks.length >= 11 && chunks[8].equalsIgnoreCase("EX")) {
-                String exp = chunks[10];
+            } else if (chunks.length >= 5 && chunks[3].equalsIgnoreCase("EX")) {
+                String exp = chunks[4];
                 long sec = Long.parseLong(exp);
                 GlobeStore.expTime.put(key, Instant.now().plusSeconds(sec));
             }
@@ -35,8 +37,8 @@ public class ProcessRequest {
     }
 
     public static String processGet(String[] chunks) {
-        if (chunks.length >= 5) {
-            String key = chunks[4];
+        if (chunks.length >= 2) {
+            String key = chunks[1];
             String val = GlobeStore.data.get(key);
 
             if (val == null) {
@@ -56,19 +58,19 @@ public class ProcessRequest {
     }
 
     public static String processRPush(String[] chunks) {
-        if (chunks.length >= 7) {
-            String list = chunks[4];
+        if (chunks.length >= 3) {
+            String list = chunks[1];
             String size = "";
             ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
             if (myList == null) {
                 ArrayDeque<String> newList = new ArrayDeque<>();
-                for (int i = 6; i < chunks.length; i += 2) {
+                for (int i = 2; i < chunks.length; i++) {
                     newList.add(chunks[i]);
                 }
                 GlobeStore.rPushList.put(list, newList);
                 size = String.valueOf(newList.size());
             } else {
-                for (int i = 6; i < chunks.length; i += 2) {
+                for (int i = 2; i < chunks.length; i++) {
                     myList.add(chunks[i]);
                 }
                 GlobeStore.rPushList.put(list, myList);
@@ -81,19 +83,19 @@ public class ProcessRequest {
     }
 
     public static String processLPush(String[] chunks) {
-        if (chunks.length >= 7) {
-            String list = chunks[4];
+        if (chunks.length >= 3) {
+            String list = chunks[1];
             String size = "";
             ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
             if (myList == null) {
                 ArrayDeque<String> newList = new ArrayDeque<>();
-                for (int i = 6; i < chunks.length; i += 2) {
+                for (int i = 2; i < chunks.length; i++) {
                     newList.addFirst(chunks[i]);
                 }
                 GlobeStore.rPushList.put(list, newList);
                 size = String.valueOf(newList.size());
             } else {
-                for (int i = 6; i < chunks.length; i += 2) {
+                for (int i = 2; i < chunks.length; i++) {
                     myList.addFirst(chunks[i]);
                 }
                 GlobeStore.rPushList.put(list, myList);
@@ -106,12 +108,12 @@ public class ProcessRequest {
     }
 
     public static String processLrange(String[] chunks) {
-        if (chunks.length >= 9) {
-            String list = chunks[4];
+        if (chunks.length >= 4) {
+            String list = chunks[1];
             ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
             if (myList == null) return "*0\r\n";
-            int l = Integer.parseInt(chunks[6]);
-            int r = Integer.parseInt(chunks[8]);
+            int l = Integer.parseInt(chunks[2]);
+            int r = Integer.parseInt(chunks[3]);
 
             if (l < 0) l = myList.size() + l;
             if (r < 0) r = myList.size() + r;
@@ -133,8 +135,8 @@ public class ProcessRequest {
     }
 
     public static String processLlen(String[] chunks) {
-        if (chunks.length >= 5) {
-            String list = chunks[4];
+        if (chunks.length >= 2) {
+            String list = chunks[1];
             String size = "";
             ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
             if (myList == null) {
@@ -149,16 +151,16 @@ public class ProcessRequest {
     }
 
     public static String processLpop(String[] chunks) {
-        if (chunks.length >= 5) {
-            String list = chunks[4];
+        if (chunks.length >= 2) {
+            String list = chunks[1];
             ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
             if (myList == null || myList.isEmpty()) {
                 return "$-1\r\n";
             }
             String output = "";
             int count = 1;
-            if (chunks.length >= 7) {
-                count = Integer.parseInt(chunks[6]);
+            if (chunks.length >= 3) {
+                count = Integer.parseInt(chunks[2]);
                 output = output.concat("*" + count + "\r\n");
             }
             int size = myList.size();
@@ -170,5 +172,77 @@ public class ProcessRequest {
             return output;
         }
         return "$-1\r\n";
+    }
+
+    public static String processBLpop(String[] chunks) throws InterruptedException {
+        if (chunks.length >= 3) {
+            String list = chunks[1];
+            long wait = Long.parseLong(chunks[2]);
+
+            //we will work on 'wait' later
+            GlobeStore.Ticket ticket = new GlobeStore.Ticket();
+            GlobeStore.BLpopClients.computeIfAbsent(list, k -> new LinkedBlockingQueue<>()).add(ticket);
+
+            synchronized (GlobeStore.schedulers) {
+                if (!GlobeStore.schedulers.containsKey(list)) {
+                    createNewSchedulerAndRunIt(list);
+                }
+            }
+            synchronized (ticket) {
+                while (!ticket.isDone) {
+                    ticket.wait();
+                }
+            }
+
+            System.out.println("value: " + ticket.value + " list: " + list + "isDone : " + ticket.isDone);
+            return "*2\r\n$" + list.length() + "\r\n"+list +"\r\n$" + ticket.value.length() + "\r\n" + ticket.value + "\r\n";
+        }
+        return "$-1\r\n";
+    }
+
+    private static void createNewSchedulerAndRunIt(String list) {
+        ScheduledExecutorService BlpopScheduler = Executors.newSingleThreadScheduledExecutor();
+        BlpopScheduler.scheduleWithFixedDelay(() -> {
+            System.out.println("Running the list exist or not...");
+            boolean closed = checkClientQueueEmptyAndCloseScheduler(list, BlpopScheduler);
+            if (!closed && checkListCreatedOrNot(list)) {
+                //remove the first and assign it to ticket and give to the first client then remove the client.
+                synchronized (GlobeStore.rPushList.get(list)) {
+                    GlobeStore.Ticket client = GlobeStore.BLpopClients.get(list).poll();
+                    ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
+                    String value = myList.getFirst();
+
+                    if (client != null) {
+                        synchronized (client) {
+                            client.value = value;
+                            client.isDone = true;
+                            client.notify();
+                        }
+                    }
+                    myList.removeFirst();
+                }
+            }
+        }, 0, 10, TimeUnit.NANOSECONDS);
+        GlobeStore.schedulers.put(list, BlpopScheduler);
+    }
+
+    private static boolean checkClientQueueEmptyAndCloseScheduler(String list, ScheduledExecutorService BlpopScheduler) {
+
+        synchronized (GlobeStore.schedulers) {
+
+            if (GlobeStore.BLpopClients.get(list).isEmpty()) {
+                synchronized (GlobeStore.BLpopClients.get(list)) {
+                    BlpopScheduler.shutdown();
+                    GlobeStore.schedulers.remove(list);
+                    return true;
+                }
+            } else return false;
+        }
+
+    }
+
+    private static boolean checkListCreatedOrNot(String list) {
+        ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
+        return !(myList == null || myList.isEmpty());
     }
 }

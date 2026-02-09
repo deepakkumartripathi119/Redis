@@ -25,7 +25,8 @@ public class Main {
                 clientSocket = serverSocket.accept();
                 HandleClients handleClients = new HandleClients(clientSocket);
 
-                Thread worker = new Thread(handleClients);
+                String threadName = "Client-" + clientSocket.getPort();
+                Thread worker = new Thread(handleClients, threadName);
                 worker.start();
             }
 

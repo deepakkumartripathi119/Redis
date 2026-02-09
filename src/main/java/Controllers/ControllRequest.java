@@ -3,18 +3,10 @@ package Controllers;
 import static Services.ProcessRequest.*;
 
 public class ControllRequest {
-    public String requestParser(String input) {
-        if (!input.startsWith("*")) {
-            return "error: expected '*'\r\n";
-        }
-        String[] chunks = input.split("\r\n");
-        return requestController(chunks);
-    }
+    public String requestController(String[] chunks) throws InterruptedException {
+        if (chunks.length < 1) return "$-1\r\n";
 
-    public String requestController(String[] chunks) {
-        if (chunks.length < 3) return "$-1\r\n";
-
-        String command = chunks[2];
+        String command = chunks[0];
 
         if (command.equalsIgnoreCase("PING")) {
             return "+PONG\r\n";
@@ -39,6 +31,10 @@ public class ControllRequest {
         else if (command.equalsIgnoreCase("LPOP")) {
             return processLpop(chunks);
         }
+        else if (command.equalsIgnoreCase("BLPOP")) {
+            return processBLpop(chunks);
+        }
+
 
 
         return "$-1\r\n";

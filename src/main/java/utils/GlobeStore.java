@@ -1,9 +1,10 @@
 package utils;
-
+import Services.ProcessRequest;
 import java.time.Instant;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
 
 public class GlobeStore {
     // 1. 'public' means everyone can see it
@@ -12,4 +13,23 @@ public class GlobeStore {
     public static final ConcurrentHashMap<String, String> data = new ConcurrentHashMap<>();
     public static final ConcurrentHashMap<String, Instant> expTime = new ConcurrentHashMap<>();
     public static final ConcurrentHashMap<String, ArrayDeque<String>> rPushList = new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<String, LinkedBlockingQueue<Ticket>> BLpopClients = new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<String, Instant> expTimeClientBLpop = new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<String, ScheduledExecutorService> schedulers = new ConcurrentHashMap<>();
+
+
+    public static class Ticket {
+        public String value = null;
+        public boolean isDone = false;
+
+        public Ticket(String value, boolean isDone) {
+            this.value = value;
+            this.isDone = isDone;
+        }
+
+        public Ticket() {
+            String value = null;
+            boolean isDone = false;
+        }
+    }
 }
