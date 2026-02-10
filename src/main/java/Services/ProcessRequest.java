@@ -1,14 +1,15 @@
 package Services;
-
 import utils.GlobeStore;
 import utils.Stream;
 import utils.StreamEntry;
-
 import java.awt.*;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 public class ProcessRequest {
 
@@ -35,7 +36,7 @@ public class ProcessRequest {
                 long sec = Long.parseLong(exp);
                 GlobeStore.expTime.put(key, Instant.now().plusSeconds(sec));
             }
-            GlobeStore.typeOfData.computeIfAbsent(key,k-> "string");
+            GlobeStore.typeOfData.computeIfAbsent(key, k -> "string");
             return "+OK\r\n";
         }
         return "$-1\r\n";
@@ -81,7 +82,7 @@ public class ProcessRequest {
                 GlobeStore.rPushList.put(list, myList);
                 size = String.valueOf(myList.size());
             }
-            GlobeStore.typeOfData.computeIfAbsent(list,k-> "string");
+            GlobeStore.typeOfData.computeIfAbsent(list, k -> "string");
             return ":" + size + "\r\n";
         }
         return "$-1\r\n";
@@ -106,7 +107,7 @@ public class ProcessRequest {
                 GlobeStore.rPushList.put(list, myList);
                 size = String.valueOf(myList.size());
             }
-            GlobeStore.typeOfData.computeIfAbsent(list,k-> "string");
+            GlobeStore.typeOfData.computeIfAbsent(list, k -> "string");
             return ":" + size + "\r\n";
         }
         return "$-1\r\n";
@@ -221,32 +222,53 @@ public class ProcessRequest {
         return "$-1\r\n";
     }
 
-    public static String processType(String[] chunks){
-        if(chunks.length >= 2)
-        {
+    public static String processType(String[] chunks) {
+        if (chunks.length >= 2) {
             String list = chunks[1];
             String type = GlobeStore.typeOfData.get(list);
-            if(type!=null)
-            {
-                return "+"+type+"\r\n";
+            if (type != null) {
+                return "+" + type + "\r\n";
             }
             return "+none\r\n";
         }
         return "$-1\r\n";
     }
-    public static String processXAdd(String[] chunks)
-    {
+
+    public static String processXAdd(String[] chunks) {
         String streamList = chunks[1];
         String id = chunks[2];
-        Stream stream = GlobeStore.streamMap.computeIfAbsent(streamList,k->new Stream());
+        int errorType = validateStreamId(id,streamList);
+        if(errorType==1)
+        {
+            return "-ERR The ID specified in XADD must be greater than 0-0\r\n";
+        }
+        else if(errorType==2)
+        {
+            return "-ERR The ID specified in XADD is equal or smaller than the target stream top item\r\n";
+        }
+        Stream stream = GlobeStore.streamMap.computeIfAbsent(streamList, k -> new Stream());
         ArrayList<String> data = new ArrayList<>();
-        for (int i = 3; i <chunks.length; i++) {
+        for (int i = 3; i < chunks.length; i++) {
             data.add(chunks[i]);
         }
-        StreamEntry entry = new StreamEntry(id,data);
+        StreamEntry entry = new StreamEntry(id, data);
         stream.addEntry(entry);
-        GlobeStore.typeOfData.computeIfAbsent(streamList,k-> "stream");
-        return "$"+id.length()+"\r\n"+id+"\r\n";
+        GlobeStore.typeOfData.computeIfAbsent(streamList, k -> "stream");
+        return "$" + id.length() + "\r\n" + id + "\r\n";
+    }
+
+    private static int validateStreamId(String id,String streamList) {
+        String [] ids = id.split("-");
+        long millis = Long.parseLong(ids[0]);
+        long count = Long.parseLong(ids[1]);
+        if(millis==0&&count==0)return 1;
+        Stream lastEntry = GlobeStore.streamMap.get(streamList);
+        if(lastEntry==null)return 0;
+        String[] lastEntryId = lastEntry.getLastEntry().getId().split("-");
+        long millLast = Long.parseLong(lastEntryId[0]);
+        long cntLast = Long.parseLong(lastEntryId[1]);
+        if(millLast>millis||cntLast>=count)return 2;
+        return 0;
     }
 
     private static void createNewSchedulerAndRunIt(String list) {
