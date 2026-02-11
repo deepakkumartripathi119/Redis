@@ -269,7 +269,7 @@ public class ProcessRequest {
         String[] start = chunks[2].split("-");
         String[] end = chunks[3].split("-");
 
-        long sMillis = Long.parseLong(start[0]);
+        long sMillis = (start.length==0)?0L:Long.parseLong(start[0]);
         long sCount = (start.length > 1) ? Long.parseLong(start[1]) : 0;
 
         long eMillis = Long.parseLong(end[0]);
