@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
 
 public class GlobeStore {
     // 1. 'public' means everyone can see it
@@ -15,7 +14,6 @@ public class GlobeStore {
     public static final ConcurrentHashMap<String, Instant> expTime = new ConcurrentHashMap<>();
     public static final ConcurrentHashMap<String, ArrayDeque<String>> rPushList = new ConcurrentHashMap<>();
     public static final ConcurrentHashMap<String, LinkedBlockingQueue<Ticket>> BLpopClients = new ConcurrentHashMap<>();
-    public static final ConcurrentHashMap<String, ScheduledExecutorService> schedulers = new ConcurrentHashMap<>();
     public static final ConcurrentHashMap<String, Stream> streamMap = new ConcurrentHashMap<>();
 
     public static class Ticket {
@@ -28,8 +26,6 @@ public class GlobeStore {
         }
 
         public Ticket() {
-            String value = null;
-            boolean isDone = false;
         }
     }
 }

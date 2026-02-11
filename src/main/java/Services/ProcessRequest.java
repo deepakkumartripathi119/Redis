@@ -4,12 +4,10 @@ import utils.GlobeStore;
 import utils.Stream;
 import utils.StreamEntry;
 
-import java.awt.*;
 import java.time.Instant;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.*;
-import java.util.stream.Collectors;
 
 public class ProcessRequest {
 
@@ -64,50 +62,28 @@ public class ProcessRequest {
     }
 
     public static String processRPush(String[] chunks) {
-        if (chunks.length >= 3) {
-            String list = chunks[1];
-            String size = "";
-            ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
-            if (myList == null) {
-                ArrayDeque<String> newList = new ArrayDeque<>();
-                for (int i = 2; i < chunks.length; i++) {
-                    newList.add(chunks[i]);
-                }
-                GlobeStore.rPushList.put(list, newList);
-                size = String.valueOf(newList.size());
-            } else {
-                for (int i = 2; i < chunks.length; i++) {
-                    myList.add(chunks[i]);
-                }
-                GlobeStore.rPushList.put(list, myList);
-                size = String.valueOf(myList.size());
-            }
-            GlobeStore.typeOfData.computeIfAbsent(list, k -> "string");
-            return ":" + size + "\r\n";
-        }
-        return "$-1\r\n";
+        return processPush(chunks, false);
     }
 
     public static String processLPush(String[] chunks) {
+        return processPush(chunks, true);
+    }
+
+    private static String processPush(String[] chunks, boolean leftPush) {
         if (chunks.length >= 3) {
             String list = chunks[1];
             String size = "";
-            ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
-            if (myList == null) {
-                ArrayDeque<String> newList = new ArrayDeque<>();
-                for (int i = 2; i < chunks.length; i++) {
-                    newList.addFirst(chunks[i]);
-                }
-                GlobeStore.rPushList.put(list, newList);
-                size = String.valueOf(newList.size());
-            } else {
-                for (int i = 2; i < chunks.length; i++) {
+            ArrayDeque<String> myList = GlobeStore.rPushList.computeIfAbsent(list, k -> new ArrayDeque<>());
+            for (int i = 2; i < chunks.length; i++) {
+                if (leftPush) {
                     myList.addFirst(chunks[i]);
+                } else {
+                    myList.add(chunks[i]);
                 }
-                GlobeStore.rPushList.put(list, myList);
-                size = String.valueOf(myList.size());
             }
-            GlobeStore.typeOfData.computeIfAbsent(list, k -> "string");
+            size = String.valueOf(myList.size());
+            GlobeStore.typeOfData.computeIfAbsent(list, k -> "list");
+            notifyBLpopWaiters(list);
             return ":" + size + "\r\n";
         }
         return "$-1\r\n";
@@ -129,14 +105,15 @@ public class ProcessRequest {
             if (r < 0) r = 0;
             r = Integer.min(r, myList.size() - 1);
 
-            String output = "*" + (r - l + 1) + "\r\n";
-            Object[] arr = myList.toArray();
+            StringBuilder output = new StringBuilder();
+            output.append("*").append(r - l + 1).append("\r\n");
+            List<String> arr = new ArrayList<>(myList);
 
             for (int i = l; i <= r; i++) {
-                String val = (String) arr[i];
-                output = output.concat("$" + val.length() + "\r\n" + val + "\r\n");
+                String val = arr.get(i);
+                output.append("$").append(val.length()).append("\r\n").append(val).append("\r\n");
             }
-            return output;
+            return output.toString();
         }
         return "*0\r\n";
     }
@@ -164,19 +141,19 @@ public class ProcessRequest {
             if (myList == null || myList.isEmpty()) {
                 return "$-1\r\n";
             }
-            String output = "";
+            StringBuilder output = new StringBuilder();
             int count = 1;
             if (chunks.length >= 3) {
                 count = Integer.parseInt(chunks[2]);
-                output = output.concat("*" + count + "\r\n");
+                output.append("*").append(count).append("\r\n");
             }
             int size = myList.size();
             for (int i = 0; i < Integer.min(size, count); i++) {
                 String first = myList.getFirst();
                 myList.removeFirst();
-                output = output.concat("$" + first.length() + "\r\n" + first + "\r\n");
+                output.append("$").append(first.length()).append("\r\n").append(first).append("\r\n");
             }
-            return output;
+            return output.toString();
         }
         return "$-1\r\n";
     }
@@ -191,11 +168,7 @@ public class ProcessRequest {
 
             GlobeStore.BLpopClients.computeIfAbsent(list, k -> new LinkedBlockingQueue<>()).add(ticket);
 
-            synchronized (GlobeStore.schedulers) {
-                if (!GlobeStore.schedulers.containsKey(list)) {
-                    createNewSchedulerAndRunIt(list);
-                }
-            }
+            notifyBLpopWaiters(list);
 
             synchronized (ticket) {
                 if (exp == 0) {
@@ -306,54 +279,25 @@ public class ProcessRequest {
         return 0;
     }
 
-    private static void createNewSchedulerAndRunIt(String list) {
-        ScheduledExecutorService BlpopScheduler = Executors.newSingleThreadScheduledExecutor();
-        GlobeStore.schedulers.put(list, BlpopScheduler);
+    private static void notifyBLpopWaiters(String list) {
+        LinkedBlockingQueue<GlobeStore.Ticket> clients = GlobeStore.BLpopClients.get(list);
+        if (clients == null || clients.isEmpty()) return;
 
-        BlpopScheduler.scheduleWithFixedDelay(() -> {
-            try {
-                if (checkClientQueueEmptyAndCloseScheduler(list, BlpopScheduler)) {
-                    return;
-                }
-
-                if (checkListCreatedOrNot(list)) {
-                    ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
-                    synchronized (myList) {
-                        if (!myList.isEmpty()) {
-                            LinkedBlockingQueue<GlobeStore.Ticket> clients = GlobeStore.BLpopClients.get(list);
-                            GlobeStore.Ticket client = clients.poll();
-
-                            if (client != null) {
-                                String value = myList.removeFirst();
-                                synchronized (client) {
-                                    client.value = value;
-                                    client.isDone = true;
-                                    client.notify();
-                                }
-                            }
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }, 0, 10, TimeUnit.MILLISECONDS);
-    }
-
-    private static boolean checkClientQueueEmptyAndCloseScheduler(String list, ScheduledExecutorService BlpopScheduler) {
-        synchronized (GlobeStore.schedulers) {
-            LinkedBlockingQueue<GlobeStore.Ticket> clients = GlobeStore.BLpopClients.get(list);
-            if (clients == null || clients.isEmpty()) {
-                BlpopScheduler.shutdown();
-                GlobeStore.schedulers.remove(list);
-                return true;
-            }
-            return false;
-        }
-    }
-
-    private static boolean checkListCreatedOrNot(String list) {
         ArrayDeque<String> myList = GlobeStore.rPushList.get(list);
-        return myList != null;
+        if (myList == null) return;
+
+        while (!clients.isEmpty()) {
+            synchronized (myList) {
+                if (myList.isEmpty()) break;
+                GlobeStore.Ticket client = clients.poll();
+                if (client == null) break;
+                String value = myList.removeFirst();
+                synchronized (client) {
+                    client.value = value;
+                    client.isDone = true;
+                    client.notify();
+                }
+            }
+        }
     }
 }

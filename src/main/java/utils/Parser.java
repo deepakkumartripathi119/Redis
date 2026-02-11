@@ -11,7 +11,6 @@ public class Parser {
             return new ArrayList<>();
         }
         List<String> args = new ArrayList<>();
-        System.out.println("Hlo");
         int ind = 0;
         int totLen = 1;
         while(totLen > 0){
@@ -28,7 +27,6 @@ public class Parser {
                 totLen--;
             }
         }
-        System.out.println(args);
         return args;
     }
 }
