@@ -14,7 +14,7 @@ public class StreamEntry {
     public String getId () {
         return id;
     }
-    public List<String> getBody () {
+    public ArrayList<String> getBody () {
         return body;
     }
 }

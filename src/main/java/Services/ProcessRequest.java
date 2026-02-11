@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 public class ProcessRequest {
 
@@ -258,6 +259,67 @@ public class ProcessRequest {
 
         return "$" + finalId.length() + "\r\n" + finalId + "\r\n";
     }
+
+    public static String processXRange(String[] chunks) {
+        if (chunks.length < 4) {
+            return "-ERR wrong number of arguments\r\n";
+        }
+
+        String list = chunks[1];
+        String[] start = chunks[2].split("-");
+        String[] end = chunks[3].split("-");
+
+        long sMillis = Long.parseLong(start[0]);
+        long sCount = (start.length > 1) ? Long.parseLong(start[1]) : 0;
+
+        long eMillis = Long.parseLong(end[0]);
+        long eCount = (end.length > 1) ? Long.parseLong(end[1]) : Long.MAX_VALUE;
+
+        Stream stream = GlobeStore.streamMap.get(list);
+        if (stream == null) {
+            return "*0\r\n";
+        }
+
+        LinkedHashMap<String, StreamEntry> entries = stream.getEntries();
+
+        ArrayList<String> ids = new ArrayList<>();
+
+        for (String key : entries.keySet()) {
+            String[] parts = key.split("-");
+            long id = Long.parseLong(parts[0]);
+            long cnt = Long.parseLong(parts[1]);
+
+            if (id < sMillis || (id == sMillis && cnt < sCount)) {
+                continue;
+            }
+
+            if (id > eMillis || (id == eMillis && cnt > eCount)) {
+                break;
+            }
+
+            ids.add(key);
+        }
+
+        StringBuilder output = new StringBuilder();
+        output.append("*").append(ids.size()).append("\r\n");
+
+        for (String id : ids) {
+            StreamEntry entry = entries.get(id);
+
+            output.append("*2\r\n");
+            output.append("$").append(id.length()).append("\r\n").append(id).append("\r\n");
+
+            ArrayList<String> body = entry.getBody();
+            output.append("*").append(body.size()).append("\r\n");
+
+            for (String data : body) {
+                output.append("$").append(data.length()).append("\r\n").append(data).append("\r\n");
+            }
+        }
+
+        return output.toString();
+    }
+
 
     private static int validateStreamId(String id, String streamList) {
         String[] ids = id.split("-");

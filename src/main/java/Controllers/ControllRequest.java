@@ -40,6 +40,9 @@ public class ControllRequest {
         else if (command.equalsIgnoreCase("XADD")) {
             return processXAdd(chunks);
         }
+        else if (command.equalsIgnoreCase("XRANGE")) {
+            return processXRange(chunks);
+        }
 
 
         return "$-1\r\n";
