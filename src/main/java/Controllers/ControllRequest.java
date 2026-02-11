@@ -43,6 +43,9 @@ public class ControllRequest {
         else if (command.equalsIgnoreCase("XRANGE")) {
             return processXRange(chunks);
         }
+        else if (command.equalsIgnoreCase("XREAD")) {
+            return processXRead(chunks);
+        }
 
 
         return "$-1\r\n";

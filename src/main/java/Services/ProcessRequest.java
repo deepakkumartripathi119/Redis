@@ -269,10 +269,25 @@ public class ProcessRequest {
         String[] start = chunks[2].split("-");
         String[] end = chunks[3].split("-");
 
-        long sMillis = (start.length==0)?0L:Long.parseLong(start[0]);
+        return findEntriesInRange(start, end, list, false);
+    }
+
+    public static String processXRead(String[] chunks) {
+        if (chunks.length < 4) {
+            return "-ERR wrong number of arguments\r\n";
+        }
+
+        String list = chunks[2];
+        String[] start = chunks[3].split("-");
+        String[] end = new String[]{"+"};
+        return findEntriesInRange(start, end, list, true);
+    }
+
+    private static String findEntriesInRange(String[] start, String[] end, String list, boolean check) {
+        long sMillis = (start.length == 0) ? 0L : Long.parseLong(start[0]);
         long sCount = (start.length > 1) ? Long.parseLong(start[1]) : 0;
 
-        long eMillis = (end[0].equals("+"))?Long.MAX_VALUE:Long.parseLong(end[0]);
+        long eMillis = (end[0].equals("+")) ? Long.MAX_VALUE : Long.parseLong(end[0]);
         long eCount = (end.length > 1) ? Long.parseLong(end[1]) : Long.MAX_VALUE;
 
         Stream stream = GlobeStore.streamMap.get(list);
@@ -289,7 +304,7 @@ public class ProcessRequest {
             long id = Long.parseLong(parts[0]);
             long cnt = Long.parseLong(parts[1]);
 
-            if (id < sMillis || (id == sMillis && cnt < sCount)) {
+            if (id < sMillis || (id == sMillis && cnt < sCount) || (check && sCount != 0 && id <= sMillis)) {
                 continue;
             }
 
@@ -301,6 +316,9 @@ public class ProcessRequest {
         }
 
         StringBuilder output = new StringBuilder();
+        if(check) {
+            output.append("*1\r\n").append("*2\r\n").append("$").append(list.length()).append("\r\n").append(list).append("\r\n");
+        }
         output.append("*").append(ids.size()).append("\r\n");
 
         for (String id : ids) {
@@ -319,7 +337,6 @@ public class ProcessRequest {
 
         return output.toString();
     }
-
 
     private static int validateStreamId(String id, String streamList) {
         String[] ids = id.split("-");
