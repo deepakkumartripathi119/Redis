@@ -272,7 +272,7 @@ public class ProcessRequest {
         long sMillis = (start.length==0)?0L:Long.parseLong(start[0]);
         long sCount = (start.length > 1) ? Long.parseLong(start[1]) : 0;
 
-        long eMillis = Long.parseLong(end[0]);
+        long eMillis = (end.length==0)?Long.MAX_VALUE:Long.parseLong(end[0]);
         long eCount = (end.length > 1) ? Long.parseLong(end[1]) : Long.MAX_VALUE;
 
         Stream stream = GlobeStore.streamMap.get(list);
