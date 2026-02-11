@@ -1,0 +1,7 @@
+run server on wsl:
+    # Clean the old files and build a new JAR
+    mvn clean package -DskipTests
+
+    # Run the server
+    java -jar target/codecrafters-redis.jar
+

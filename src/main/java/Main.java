@@ -1,6 +1,7 @@
 import Controllers.SendMultipleRequest;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 
@@ -8,35 +9,28 @@ public class Main {
     static SendMultipleRequest sendMultipleRequest = new SendMultipleRequest();
 
     public static void main(String[] args) {
-        // You can use print statements as follows for debugging, they'll be visible when running tests.
         System.out.println("Logs from your program will appear here!");
 
         ServerSocket serverSocket = null;
-        Socket clientSocket = null;
         int port = 6379;
+
         try {
-            serverSocket = new ServerSocket(port);
-            // Since the tester restarts your program quite often, setting SO_REUSEADDR
-            // ensures that we don't run into 'Address already in use' errors
+            serverSocket = new ServerSocket();
             serverSocket.setReuseAddress(true);
-            // Wait for connection from client.
+            serverSocket.bind(new InetSocketAddress("0.0.0.0", port));
 
+            System.out.println("Server started for port: " + port);
             while (true) {
-                clientSocket = serverSocket.accept();
+                Socket clientSocket = serverSocket.accept();
                 HandleClients handleClients = new HandleClients(clientSocket);
-
-                String threadName = "Client-" + clientSocket.getPort();
-                Thread worker = new Thread(handleClients, threadName);
-                worker.start();
+                new Thread(handleClients).start();
             }
-
-
         } catch (IOException e) {
             System.out.println("IOException: " + e.getMessage());
         } finally {
             try {
-                if (clientSocket != null) {
-                    clientSocket.close();
+                if (serverSocket != null) {
+                    serverSocket.close();
                 }
             } catch (IOException e) {
                 System.out.println("IOException: " + e.getMessage());
@@ -46,16 +40,24 @@ public class Main {
 
     static class HandleClients implements Runnable {
         private final Socket clientSocket;
+
         HandleClients(Socket clientSocket) {
             this.clientSocket = clientSocket;
         }
 
         @Override
         public void run() {
-            sendMultipleRequest.multipleResponse(clientSocket);
+            try {
+                sendMultipleRequest.multipleResponse(clientSocket);
+            } finally {
+                try {
+                    if (clientSocket != null) {
+                        clientSocket.close();
+                    }
+                } catch (IOException e) {
+                    System.out.println("IOException: " + e.getMessage());
+                }
+            }
         }
     }
 }
-
-
-

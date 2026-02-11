@@ -7,7 +7,7 @@ public class Stream {
     private StreamEntry lastEntry;
 
     public void addEntry(StreamEntry entry) {
-        entries.put(entry.id(), entry);
+        entries.put(entry.getId(), entry);
         this.lastEntry = entry;
     }
     

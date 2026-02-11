@@ -1,12 +1,12 @@
 package Services;
+
 import utils.GlobeStore;
 import utils.Stream;
 import utils.StreamEntry;
+
 import java.awt.*;
 import java.time.Instant;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.*;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
@@ -237,13 +237,10 @@ public class ProcessRequest {
     public static String processXAdd(String[] chunks) {
         String streamList = chunks[1];
         String id = chunks[2];
-        int errorType = validateStreamId(id,streamList);
-        if(errorType==1)
-        {
+        int errorType = validateStreamId(id, streamList);
+        if (errorType == 1) {
             return "-ERR The ID specified in XADD must be greater than 0-0\r\n";
-        }
-        else if(errorType==2)
-        {
+        } else if (errorType == 2) {
             return "-ERR The ID specified in XADD is equal or smaller than the target stream top item\r\n";
         }
         Stream stream = GlobeStore.streamMap.computeIfAbsent(streamList, k -> new Stream());
@@ -251,23 +248,42 @@ public class ProcessRequest {
         for (int i = 3; i < chunks.length; i++) {
             data.add(chunks[i]);
         }
+        String[] ids = id.split("-");
+        System.out.println("ids: " + Arrays.toString(ids));
+        if (stream.getLastEntry() == null) {
+            if (Objects.equals(ids[0], "0")) {
+                ids[1] = "1";
+            } else if (ids[1].equals("*")) ids[1] = "0";
+        } else {
+            String[] lId = stream.getLastEntry().getId().split("-");
+            long lmill = Long.parseLong(lId[0]);
+            long lcnt = Long.parseLong(lId[1]);
+            long currentMill = Long.parseLong(ids[0]);
+            if (currentMill == lmill) {
+                ids[1] = String.valueOf(lcnt + 1);
+            } else {
+                ids[1] = "0";
+            }
+        }
+        id = ids[0] + "-" + ids[1];
         StreamEntry entry = new StreamEntry(id, data);
         stream.addEntry(entry);
         GlobeStore.typeOfData.computeIfAbsent(streamList, k -> "stream");
         return "$" + id.length() + "\r\n" + id + "\r\n";
     }
 
-    private static int validateStreamId(String id,String streamList) {
-        String [] ids = id.split("-");
+    private static int validateStreamId(String id, String streamList) {
+        String[] ids = id.split("-");
         long millis = Long.parseLong(ids[0]);
-        long count = Long.parseLong(ids[1]);
-        if(millis==0&&count==0)return 1;
+        long count = (ids[1].equals("*")) ? -1 : Long.parseLong(ids[1]);
+        if (millis == 0 && count == 0) return 1;
         Stream lastEntry = GlobeStore.streamMap.get(streamList);
-        if(lastEntry==null)return 0;
+        if (lastEntry == null) return 0;
         String[] lastEntryId = lastEntry.getLastEntry().getId().split("-");
         long millLast = Long.parseLong(lastEntryId[0]);
         long cntLast = Long.parseLong(lastEntryId[1]);
-        if(millLast>millis||cntLast>=count)return 2;
+        if (millLast > millis || (count != -1 && cntLast >= count)) return 2;
+
         return 0;
     }
 
