@@ -237,52 +237,71 @@ public class ProcessRequest {
     public static String processXAdd(String[] chunks) {
         String streamList = chunks[1];
         String id = chunks[2];
-        int errorType = validateStreamId(id, streamList);
+
+        Stream stream = GlobeStore.streamMap.computeIfAbsent(streamList, k -> new Stream());
+
+        String[] ids;
+        if (id.equals("*")) {
+            ids = new String[]{String.valueOf(System.currentTimeMillis()), "*"};
+        } else {
+            ids = id.split("-");
+        }
+
+        if (ids.length > 1 && ids[1].equals("*")) {
+            StreamEntry lastEntry = stream.getLastEntry();
+            if (lastEntry == null) {
+                ids[1] = (ids[0].equals("0")) ? "1" : "0";
+            } else {
+                String[] lastIdParts = lastEntry.getId().split("-");
+                long lmill = Long.parseLong(lastIdParts[0]);
+                long lcnt = Long.parseLong(lastIdParts[1]);
+                long currentMill = Long.parseLong(ids[0]);
+
+                if (currentMill == lmill) {
+                    ids[1] = String.valueOf(lcnt + 1);
+                } else {
+                    ids[1] = "0";
+                }
+            }
+        }
+
+        String finalId = ids[0] + "-" + ids[1];
+
+        int errorType = validateStreamId(finalId, streamList);
         if (errorType == 1) {
             return "-ERR The ID specified in XADD must be greater than 0-0\r\n";
         } else if (errorType == 2) {
             return "-ERR The ID specified in XADD is equal or smaller than the target stream top item\r\n";
         }
-        Stream stream = GlobeStore.streamMap.computeIfAbsent(streamList, k -> new Stream());
-        ArrayList<String> data = new ArrayList<>();
+
+        ArrayList<String> data = new ArrayList<>(chunks.length - 3);
         for (int i = 3; i < chunks.length; i++) {
             data.add(chunks[i]);
         }
-        String[] ids = id.split("-");
-        System.out.println("ids: " + Arrays.toString(ids));
-        if (stream.getLastEntry() == null) {
-            if (Objects.equals(ids[0], "0")) {
-                ids[1] = "1";
-            } else if (ids[1].equals("*")) ids[1] = "0";
-        } else {
-            String[] lId = stream.getLastEntry().getId().split("-");
-            long lmill = Long.parseLong(lId[0]);
-            long lcnt = Long.parseLong(lId[1]);
-            long currentMill = Long.parseLong(ids[0]);
-            if (currentMill == lmill) {
-                ids[1] = String.valueOf(lcnt + 1);
-            } else {
-                ids[1] = "0";
-            }
-        }
-        id = ids[0] + "-" + ids[1];
-        StreamEntry entry = new StreamEntry(id, data);
+
+        StreamEntry entry = new StreamEntry(finalId, data);
         stream.addEntry(entry);
-        GlobeStore.typeOfData.computeIfAbsent(streamList, k -> "stream");
-        return "$" + id.length() + "\r\n" + id + "\r\n";
+        GlobeStore.typeOfData.put(streamList, "stream");
+
+        return "$" + finalId.length() + "\r\n" + finalId + "\r\n";
     }
 
     private static int validateStreamId(String id, String streamList) {
         String[] ids = id.split("-");
         long millis = Long.parseLong(ids[0]);
-        long count = (ids[1].equals("*")) ? -1 : Long.parseLong(ids[1]);
+        long count = Long.parseLong(ids[1]);
+
         if (millis == 0 && count == 0) return 1;
-        Stream lastEntry = GlobeStore.streamMap.get(streamList);
-        if (lastEntry == null) return 0;
-        String[] lastEntryId = lastEntry.getLastEntry().getId().split("-");
+
+        Stream stream = GlobeStore.streamMap.get(streamList);
+        if (stream == null || stream.getLastEntry() == null) return 0;
+
+        String[] lastEntryId = stream.getLastEntry().getId().split("-");
         long millLast = Long.parseLong(lastEntryId[0]);
         long cntLast = Long.parseLong(lastEntryId[1]);
-        if (millLast > millis || (count != -1 && cntLast >= count)) return 2;
+
+        if (millLast > millis) return 2;
+        if (millLast == millis && cntLast >= count) return 2;
 
         return 0;
     }
