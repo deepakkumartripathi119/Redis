@@ -273,14 +273,72 @@ public class ProcessRequest {
     }
 
     public static String processXRead(String[] chunks) {
-        if (chunks.length < 4) {
+        int streamsIndex = -1;
+        for (int i = 1; i < chunks.length; i++) {
+            if (chunks[i].equalsIgnoreCase("STREAMS")) {
+                streamsIndex = i;
+                break;
+            }
+        }
+
+        if (streamsIndex == -1 || chunks.length - streamsIndex - 1 < 2) {
             return "-ERR wrong number of arguments\r\n";
         }
 
-        String list = chunks[2];
-        String[] start = chunks[3].split("-");
-        String[] end = new String[]{"+"};
-        return findEntriesInRange(start, end, list, true);
+        int remaining = chunks.length - streamsIndex - 1;
+        if (remaining % 2 != 0) {
+            return "-ERR wrong number of arguments\r\n";
+        }
+
+        int streamCount = remaining / 2;
+        ArrayList<String> streamKeys = new ArrayList<>(streamCount);
+        ArrayList<String> streamIds = new ArrayList<>(streamCount);
+
+        for (int i = 0; i < streamCount; i++) {
+            streamKeys.add(chunks[streamsIndex + 1 + i]);
+        }
+        for (int i = 0; i < streamCount; i++) {
+            streamIds.add(chunks[streamsIndex + 1 + streamCount + i]);
+        }
+
+        ArrayList<String> streamResponses = new ArrayList<>();
+
+        for (int i = 0; i < streamCount; i++) {
+            String streamKey = streamKeys.get(i);
+            String lastId = streamIds.get(i);
+            ArrayList<StreamEntry> entries = getEntriesAfter(streamKey, lastId);
+
+            if (entries.isEmpty()) {
+                continue;
+            }
+
+            StringBuilder streamOutput = new StringBuilder();
+            streamOutput.append("*2\r\n");
+            streamOutput.append("$").append(streamKey.length()).append("\r\n").append(streamKey).append("\r\n");
+            streamOutput.append("*").append(entries.size()).append("\r\n");
+
+            for (StreamEntry entry : entries) {
+                streamOutput.append("*2\r\n");
+                streamOutput.append("$").append(entry.getId().length()).append("\r\n").append(entry.getId()).append("\r\n");
+
+                ArrayList<String> body = entry.getBody();
+                streamOutput.append("*").append(body.size()).append("\r\n");
+
+                for (String data : body) {
+                    streamOutput.append("$").append(data.length()).append("\r\n").append(data).append("\r\n");
+                }
+            }
+
+            streamResponses.add(streamOutput.toString());
+        }
+
+        StringBuilder output = new StringBuilder();
+        output.append("*").append(streamResponses.size()).append("\r\n");
+        for (String streamResponse : streamResponses) {
+            output.append(streamResponse);
+        }
+
+        return output.toString();
     }
 
     private static String findEntriesInRange(String[] start, String[] end, String list, boolean check) {
@@ -378,5 +436,52 @@ public class ProcessRequest {
                 }
             }
         }
+    }
+
+    private static ArrayList<StreamEntry> getEntriesAfter(String streamKey, String lastId) {
+        ArrayList<StreamEntry> matchingEntries = new ArrayList<>();
+        Stream stream = GlobeStore.streamMap.get(streamKey);
+        if (stream == null) {
+            return matchingEntries;
+        }
+
+        long[] startId = parseStreamId(lastId);
+        if (startId == null) {
+            return matchingEntries;
+        }
+
+        LinkedHashMap<String, StreamEntry> entries = stream.getEntries();
+        for (String entryId : entries.keySet()) {
+            long[] currentId = parseStreamId(entryId);
+            if (currentId == null) {
+                continue;
+            }
+
+            if (compareStreamIds(currentId, startId) > 0) {
+                matchingEntries.add(entries.get(entryId));
+            }
+        }
+
+        return matchingEntries;
+    }
+
+    private static long[] parseStreamId(String id) {
+        String[] parts = id.split("-");
+        if (parts.length != 2) {
+            return null;
+        }
+
+        try {
+            return new long[]{Long.parseLong(parts[0]), Long.parseLong(parts[1])};
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static int compareStreamIds(long[] left, long[] right) {
+        if (left[0] != right[0]) {
+            return Long.compare(left[0], right[0]);
+        }
+        return Long.compare(left[1], right[1]);
     }
 }
